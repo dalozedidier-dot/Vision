@@ -144,6 +144,9 @@ jobs:
           echo "### Fichiers produits (présence)" >> "$GITHUB_STEP_SUMMARY"
           CYCLE_DIR="unified_cycles/${{ steps.run.outputs.cycle_id }}"
           [ -f "$CYCLE_DIR/unified_manifest.json" ] && echo "- unified_manifest.json: présent" >> "$GITHUB_STEP_SUMMARY" || echo "- unified_manifest.json: absent" >> "$GITHUB_STEP_SUMMARY"
+          [ -f "$CYCLE_DIR/systemd/run_manifest.json" ] && echo "- systemd/run_manifest.json: présent" >> "$GITHUB_STEP_SUMMARY" || echo "- systemd/run_manifest.json: absent" >> "$GITHUB_STEP_SUMMARY"
+          [ -f "$CYCLE_DIR/sost/run_manifest.json" ] && echo "- sost/run_manifest.json: présent" >> "$GITHUB_STEP_SUMMARY" || echo "- sost/run_manifest.json: absent" >> "$GITHUB_STEP_SUMMARY"
+          [ -f "$CYCLE_DIR/phio/phio_manifest.json" ] && echo "- phio/phio_manifest.json: présent" >> "$GITHUB_STEP_SUMMARY" || echo "- phio/phio_manifest.json: absent" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Show unified manifest
         if: always()
@@ -152,8 +155,8 @@ jobs:
           set -euo pipefail
           cat "unified_cycles/${{ steps.run.outputs.cycle_id }}/unified_manifest.json" || true
 
-      # Léger mais utile: manifest + quelques rapports lisibles
-      - name: Upload manifest + key reports (default)
+      # Pack léger mais auto-suffisant: manifest + entrée + rapports clés
+      - name: Upload pack (default)
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -161,19 +164,20 @@ jobs:
           retention-days: 7
           path: |
             unified_cycles/${{ steps.run.outputs.cycle_id }}/unified_manifest.json
+            unified_cycles/${{ steps.run.outputs.cycle_id }}/input/fixture.json
+            unified_cycles/${{ steps.run.outputs.cycle_id }}/input/raw/**
 
             unified_cycles/${{ steps.run.outputs.cycle_id }}/phio/phio_report.json
             unified_cycles/${{ steps.run.outputs.cycle_id }}/phio/phio_manifest.json
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/phio/run_manifest.json
 
             unified_cycles/${{ steps.run.outputs.cycle_id }}/systemd/extraction_report.json
             unified_cycles/${{ steps.run.outputs.cycle_id }}/systemd/ddr_report.json
             unified_cycles/${{ steps.run.outputs.cycle_id }}/systemd/e_report.json
             unified_cycles/${{ steps.run.outputs.cycle_id }}/systemd/run_manifest.json
 
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/dd_report.json
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/ddr_report.json
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/e_report.json
+            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/dd/dd_report.json
+            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/ddr/ddr_report.json
+            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/e/e_report.json
             unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/run_manifest.json
 
       # Debug: upload complet uniquement en manuel
