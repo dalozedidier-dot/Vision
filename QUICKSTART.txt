@@ -15,3 +15,14 @@ cat unified_cycles/<cycle_id>/unified_manifest.json
 SystemD attend un fichier Markdown de type TEST_MATRIX.md dans les sources du fixture (raw/*.md).
 Collecte un .md (ou ajoute-le comme source) via:
 python3 tools/collector.py --out shared_fixtures --source matrix:/chemin/vers/TEST_MATRIX.md --source data:/chemin/vers/autres_fichiers
+
+
+## Générer automatiquement un TEST_MATRIX.md depuis un CSV (pour activer SystemD)
+Après avoir créé une fixture (cycle_id), fais:
+
+python3 tools/csv_to_test_matrix.py \
+  --csv shared_fixtures/<cycle_id>/raw/band_imf_colombia_log_nochange.csv \
+  --out shared_fixtures/<cycle_id>/raw/TEST_MATRIX.md
+
+Puis relance le cycle:
+bash tools/run_parallel_real.sh shared_fixtures/<cycle_id> unified_cycles

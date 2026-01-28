@@ -67,3 +67,13 @@ Cette version embarque aussi `engines/systemd-runner`.
 Le wrapper `tools/systemd_run.py` exécute `00_core/scripts/run_ddr.py` avec `--with-e`.
 Il cherche un fichier Markdown dans les sources du fixture (raw/*.md), en priorité `TEST_MATRIX.md`.
 Si aucun Markdown n’est présent, SystemD écrit un `extraction_report.json` en statut `skipped` (cycle propre, pas d’échec).
+
+
+## Génération TEST_MATRIX.md depuis CSV
+Pour utiliser SystemD même quand tes flux sont CSV, tu peux générer un `raw/TEST_MATRIX.md` avec:
+
+```bash
+python3 tools/csv_to_test_matrix.py --csv <fichier.csv> --out <cycle_dir>/raw/TEST_MATRIX.md
+```
+
+Ce fichier ne fait que décrire le contenu (colonnes, stats sur échantillon, lignes échantillon) sous forme de headings + listes.
