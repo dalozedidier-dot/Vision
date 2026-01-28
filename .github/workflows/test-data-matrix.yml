@@ -12,7 +12,8 @@ jobs:
     outputs:
       files_json: ${{ steps.discover.outputs.files_json }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Discover CSV files in test_data
         id: discover
@@ -32,7 +33,7 @@ jobs:
               if p.stat().st_size <= 5 * 1024 * 1024:  # 5 MB
                 files.append(p.as_posix())
 
-          # Sauve JSON pour le transmettre proprement à GITHUB_OUTPUT
+          # Output JSON vers fichier temporaire
           Path("/tmp/files.json").write_text(json.dumps(files), encoding="utf-8")
 
           # Summary lisible
@@ -46,7 +47,7 @@ jobs:
 
           cat /tmp/discover_summary.md >> "$GITHUB_STEP_SUMMARY"
 
-          # IMPORTANT: outputs via environment file (plus de set-output)
+          # IMPORTANT: outputs via GITHUB_OUTPUT (remplace set-output)
           {
             echo "files_json<<EOF"
             cat /tmp/files.json
