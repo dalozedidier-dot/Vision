@@ -1,3 +1,67 @@
+# Index test_data + tests rapides
+
+## Tests rapides (copier-coller)
+
+### 1) Smoke test MOCK (le plus robuste)
+```bash
+mkdir -p test_data_dl
+
+curl -L "https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/GDPDeflator.csv" -o test_data_dl/GDPDeflator.csv
+
+python3 tools/collector.py --out shared_fixtures \
+  --source band_imf:test_data_dl/GDPDeflator.csv
+
+CYCLE_ID="$(ls -1 shared_fixtures | tail -n 1)"
+bash tools/run_parallel.sh "shared_fixtures/$CYCLE_ID" unified_cycles
+cat "unified_cycles/$CYCLE_ID/unified_manifest.json"
+```
+
+### 2) Smoke test RÉEL (SOST) conseillé
+SOST est le plus fiable avec `minimal_timeseries.csv`.
+```bash
+mkdir -p test_data_dl
+
+curl -L "https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/minimal_timeseries.csv" -o test_data_dl/minimal_timeseries.csv
+
+python3 tools/collector.py --out shared_fixtures \
+  --source ts:test_data_dl/minimal_timeseries.csv
+
+CYCLE_ID="$(ls -1 shared_fixtures | tail -n 1)"
+bash tools/run_parallel_real.sh "shared_fixtures/$CYCLE_ID" unified_cycles
+cat "unified_cycles/$CYCLE_ID/unified_manifest.json"
+```
+
+### 3) Activer SystemD à partir d’un CSV (si `csv_to_test_matrix.py` est présent)
+```bash
+python3 tools/csv_to_test_matrix.py \
+  --csv shared_fixtures/$CYCLE_ID/raw/minimal_timeseries.csv \
+  --out shared_fixtures/$CYCLE_ID/raw/TEST_MATRIX.md
+```
+
+## Fichiers recommandés (utilisables pour tests rapides)
+- [minimal_timeseries.csv](test_data/minimal_timeseries.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/minimal_timeseries.csv
+- [GDPDeflator.csv](test_data/GDPDeflator.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/GDPDeflator.csv
+- [CPI.csv](test_data/CPI.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/CPI.csv
+- [Population.csv](test_data/Population.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/Population.csv
+- [RealGDP.csv](test_data/RealGDP.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/RealGDP.csv
+- [RealPerCapitaGDP.csv](test_data/RealPerCapitaGDP.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/RealPerCapitaGDP.csv
+- [RealExchangeRate.csv](test_data/RealExchangeRate.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/RealExchangeRate.csv
+- [ITU_DH_INT_USER_PT.csv](test_data/ITU_DH_INT_USER_PT.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/ITU_DH_INT_USER_PT.csv
+- [ITU_DH_ACT_MOB_PER_100.csv](test_data/ITU_DH_ACT_MOB_PER_100.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/ITU_DH_ACT_MOB_PER_100.csv
+- [WB_WBL_SG_LAW_INDX.csv](test_data/WB_WBL_SG_LAW_INDX.csv)  
+  Raw: https%3A//raw.githubusercontent.com/dalozedidier-dot/transobserver/main/test_data/WB_WBL_SG_LAW_INDX.csv
+
+---
+
 ## Test data
 
 Dossier: [test_data/](test_data/)
