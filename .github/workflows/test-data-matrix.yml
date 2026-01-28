@@ -2,6 +2,7 @@ name: test-data-matrix
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -48,13 +49,21 @@ jobs:
             --file "${{ matrix.file }}" \
             --mode "${{ matrix.mode }}" | tail -n 1 | tr -d '\r')"
 
-          echo "CYCLE_ID=$CYCLE_ID" >> "$GITHUB_ENV"
-
           {
             echo "cycle_id<<EOF"
             echo "$CYCLE_ID"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Make safe artifact name
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          SAFE_FILE="${{ matrix.file }}"
+          SAFE_FILE="${SAFE_FILE//\//_}"   # / -> _
+          SAFE_FILE="${SAFE_FILE// /_}"    # espaces -> _
+          echo "SAFE_FILE=$SAFE_FILE" >> "$GITHUB_ENV"
 
       - name: Rapport Summary (CSV + cycle)
         if: always()
@@ -80,8 +89,6 @@ jobs:
             print(f"- Statut: fichier introuvable: {f}")
             raise SystemExit(0)
 
-          # Lecture prudente: pas de pandas, pas d'hypothèse forte sur delimiter
-          # On essaye "," puis ";" si le header semble mono-colonne.
           def read_rows(delim):
             with f.open("r", encoding="utf-8", errors="ignore", newline="") as fp:
               r = csv.reader(fp, delimiter=delim)
@@ -89,7 +96,7 @@ jobs:
               rows = []
               for i, row in enumerate(r):
                 rows.append(row)
-                if i >= 199:  # 200 lignes max
+                if i >= 199:
                   break
               return header, rows
 
@@ -115,11 +122,9 @@ jobs:
               v = (c or "").strip()
               if v.lower() in na_tokens:
                 na_count += 1
-              # détecte années potentielles dans cellules
               if year_re.match(v):
                 years.add(int(v))
 
-          # détecte années potentielles dans en-têtes (fréquent pour séries annuelles)
           for h in header:
             hv = (h or "").strip()
             if year_re.match(hv):
@@ -166,13 +171,20 @@ jobs:
           set -euo pipefail
           cat "unified_cycles/${{ steps.run.outputs.cycle_id }}/unified_manifest.json" || true
 
-      - name: Upload artifacts (per file)
+      # Sobre: upload uniquement du manifest (rapide, peu gourmand)
+      - name: Upload manifest (default)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cycle-${{ matrix.mode }}-${{ matrix.file }}
-          path: |
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/unified_manifest.json
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/phio/**
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/systemd/**
-            unified_cycles/${{ steps.run.outputs.cycle_id }}/sost/**
+          name: manifest-${{ matrix.mode }}-${{ env.SAFE_FILE }}
+          path: unified_cycles/${{ steps.run.outputs.cycle_id }}/unified_manifest.json
+          retention-days: 7
+
+      # Debug: upload complet uniquement en manuel
+      - name: Upload full cycle (manual only)
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-${{ matrix.mode }}-${{ env.SAFE_FILE }}
+          path: unified_cycles/${{ steps.run.outputs.cycle_id }}/
+          retention-days: 3
