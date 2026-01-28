@@ -33,8 +33,11 @@ jobs:
               if p.stat().st_size <= 5 * 1024 * 1024:  # 5 MB
                 files.append(p.as_posix())
 
-          # Output JSON vers fichier temporaire
-          Path("/tmp/files.json").write_text(json.dumps(files), encoding="utf-8")
+          # JSON compact sur UNE ligne (safe pour GITHUB_OUTPUT)
+          Path("/tmp/files.json").write_text(
+            json.dumps(files, separators=(",", ":")),
+            encoding="utf-8"
+          )
 
           # Summary lisible
           summary = []
@@ -47,12 +50,8 @@ jobs:
 
           cat /tmp/discover_summary.md >> "$GITHUB_STEP_SUMMARY"
 
-          # IMPORTANT: outputs via GITHUB_OUTPUT (remplace set-output)
-          {
-            echo "files_json<<EOF"
-            cat /tmp/files.json
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          # Output en une seule ligne (pas de heredoc, pas de set-output)
+          echo "files_json=$(cat /tmp/files.json)" >> "$GITHUB_OUTPUT"
 
   matrix-test:
     needs: discover
@@ -77,6 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           chmod +x tools/run_parallel.sh || true
           chmod +x tools/run_parallel_real.sh || true
           chmod +x tools/smoke_one.py || true
@@ -86,11 +86,8 @@ jobs:
             --file "${{ matrix.file }}" \
             --mode "${{ matrix.mode }}" | tail -n 1 | tr -d '\r')"
 
-          {
-            echo "cycle_id<<EOF"
-            echo "$CYCLE_ID"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          # output safe (heredoc OK ici car 1 ligne)
+          echo "cycle_id=$CYCLE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Make safe artifact name
         if: always()
