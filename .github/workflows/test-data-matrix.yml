@@ -11,11 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       files_json: ${{ steps.discover.outputs.files_json }}
+      limit_label: ${{ steps.discover.outputs.limit_label }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Discover CSV files in test_data
+      - name: Discover CSV files in test_data (light on push, full on manual)
         id: discover
         shell: bash
         run: |
@@ -23,26 +24,42 @@ jobs:
 
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
+
+          event = os.environ.get("GITHUB_EVENT_NAME", "")
+          # Push/PR: léger. Manuel: plus large.
+          max_mb = 50 if event == "workflow_dispatch" else 5
+          max_bytes = max_mb * 1024 * 1024
 
           root = Path("test_data")
           files = []
+          skipped_big = 0
+
           if root.exists():
             for p in sorted(root.rglob("*.csv")):
-              # filtre taille: évite CI trop lourde
-              if p.stat().st_size <= 5 * 1024 * 1024:  # 5 MB
-                files.append(p.as_posix())
+              try:
+                if p.stat().st_size <= max_bytes:
+                  files.append(p.as_posix())
+                else:
+                  skipped_big += 1
+              except FileNotFoundError:
+                # rare race condition; ignore
+                continue
 
-          # JSON compact sur UNE ligne (safe pour GITHUB_OUTPUT)
           Path("/tmp/files.json").write_text(
             json.dumps(files, separators=(",", ":")),
             encoding="utf-8"
           )
 
-          # Summary lisible
           summary = []
           summary.append("## Discover")
-          summary.append(f"- CSV sélectionnés (<= 5MB): {len(files)}")
+          summary.append(f"- Mode event: `{event}`")
+          summary.append(f"- Limite taille: {max_mb} MB")
+          summary.append(f"- CSV sélectionnés: {len(files)}")
+          summary.append(f"- CSV ignorés (trop gros): {skipped_big}")
+          summary.append("")
+          summary.append("### Liste")
           for f in files:
             summary.append(f"- `{f}`")
           Path("/tmp/discover_summary.md").write_text("\n".join(summary) + "\n", encoding="utf-8")
@@ -50,8 +67,13 @@ jobs:
 
           cat /tmp/discover_summary.md >> "$GITHUB_STEP_SUMMARY"
 
-          # Output en une seule ligne (pas de heredoc, pas de set-output)
           echo "files_json=$(cat /tmp/files.json)" >> "$GITHUB_OUTPUT"
+          # petit label utile pour affichage downstream
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "limit_label=50MB" >> "$GITHUB_OUTPUT"
+          else
+            echo "limit_label=5MB" >> "$GITHUB_OUTPUT"
+          fi
 
   matrix-test:
     needs: discover
@@ -81,12 +103,10 @@ jobs:
           chmod +x tools/run_parallel_real.sh || true
           chmod +x tools/smoke_one.py || true
 
-          # smoke_one.py peut imprimer des logs -> prendre la dernière ligne
           CYCLE_ID="$(python3 tools/smoke_one.py \
             --file "${{ matrix.file }}" \
             --mode "${{ matrix.mode }}" | tail -n 1 | tr -d '\r')"
 
-          # output safe (heredoc OK ici car 1 ligne)
           echo "cycle_id=$CYCLE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Make safe artifact name
@@ -103,7 +123,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pack-${{ matrix.mode }}-${{ env.SAFE_FILE }}
+          name: pack-${{ matrix.mode }}-${{ needs.discover.outputs.limit_label }}-${{ env.SAFE_FILE }}
           retention-days: 7
           path: |
             unified_cycles/${{ steps.run.outputs.cycle_id }}/unified_manifest.json
@@ -127,6 +147,6 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: full-${{ matrix.mode }}-${{ env.SAFE_FILE }}
+          name: full-${{ matrix.mode }}-${{ needs.discover.outputs.limit_label }}-${{ env.SAFE_FILE }}
           path: unified_cycles/${{ steps.run.outputs.cycle_id }}/
           retention-days: 3
