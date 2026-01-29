@@ -1,0 +1,67 @@
+name: Collect all reports
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow_filter:
+        description: "Optionnel: nom du workflow à cibler (sinon dernier run success tous workflows)"
+        required: false
+        default: ""
+      keep_outdir:
+        description: "Conserver _collected_reports existant"
+        required: false
+        type: boolean
+        default: false
+      create_zip:
+        description: "Créer aussi un zip final"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check gh
+        run: gh --version
+
+      - name: Collect artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=(--repos-file repos.txt --outdir _collected_reports)
+
+          if [ -n "${{ inputs.workflow_filter }}" ]; then
+            args+=(--workflow "${{ inputs.workflow_filter }}")
+          fi
+
+          if [ "${{ inputs.keep_outdir }}" = "true" ]; then
+            args+=(--keep)
+          fi
+
+          if [ "${{ inputs.create_zip }}" = "true" ]; then
+            args+=(--zip)
+          fi
+
+          python scripts/collect_all_reports.py "${args[@]}"
+
+      - name: Upload collected reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: collected-reports
+          path: |
+            _collected_reports/
+            all_reports_bundle_*.zip
