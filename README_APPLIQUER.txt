@@ -1,4 +1,4 @@
-Implantation (où mettre les fichiers)
+Implantation
 
 Choisir un seul repo orchestrateur (recommandé: Vision).
 Dans ce repo, à la racine:
@@ -6,11 +6,18 @@ Dans ce repo, à la racine:
 - targets.yml
 - .github/workflows/orchestrate_all_modules.yml
 
-Puis dans GitHub web
+Lancer dans GitHub web
 - Actions
 - Orchestrate all modules
 - Run workflow
 
-Token
-Pour déclencher et lire des runs dans d'autres repos, github.token peut être insuffisant.
-Recommandé: un secret repository nommé GH_PAT (PAT avec permissions lecture Actions sur les 5 repos).
+Secret recommandé
+- GH_PAT
+
+Pourquoi
+- Le token github.token a souvent des limitations cross-repo.
+- Sans PAT, tu risques des erreurs 403 / Resource not accessible / workflow not found.
+
+Debug
+- Le run produit _orchestrate_out/preflight avec la liste des workflows par repo.
+- Télécharge l'artefact orchestrate_out et ouvre summary.json pour voir exactement quel appel a échoué.

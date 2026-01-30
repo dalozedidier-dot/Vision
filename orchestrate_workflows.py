@@ -16,14 +16,8 @@ def now_utc() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def run_capture(cmd: List[str], *, cwd: Optional[Path] = None) -> Tuple[int, str]:
-    p = subprocess.run(
-        cmd,
-        cwd=str(cwd) if cwd else None,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+def run_capture(cmd: List[str]) -> Tuple[int, str]:
+    p = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return p.returncode, p.stdout or ""
 
 
@@ -36,6 +30,11 @@ def ensure_gh() -> None:
 def write_json(path: Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 @dataclass
@@ -63,38 +62,36 @@ def load_targets(path: Path) -> List[RepoTarget]:
     return out
 
 
-def workflow_selector(wf: WorkflowTarget) -> Optional[str]:
+def selector(wf: WorkflowTarget) -> Optional[str]:
     return wf.file or wf.name
 
 
+def gh_workflow_list(owner: str, repo: str) -> Tuple[int, str]:
+    cmd = ["gh", "workflow", "list", "-R", f"{owner}/{repo}"]
+    return run_capture(cmd)
+
+
 def gh_workflow_run(owner: str, repo: str, wf: WorkflowTarget) -> Tuple[bool, str]:
-    selector = workflow_selector(wf)
-    if not selector:
+    sel = selector(wf)
+    if not sel:
         return False, "workflow_selector_missing"
-    cmd = ["gh", "workflow", "run", selector, "-R", f"{owner}/{repo}"]
+    cmd = ["gh", "workflow", "run", sel, "-R", f"{owner}/{repo}"]
     rc, out = run_capture(cmd)
     return rc == 0, out.strip()
 
 
-def gh_find_latest_run_id(owner: str, repo: str, wf: WorkflowTarget, timeout_s: int = 90) -> Optional[int]:
-    selector = workflow_selector(wf)
-    if not selector:
+def gh_find_latest_run_id(owner: str, repo: str, wf: WorkflowTarget, timeout_s: int = 120) -> Optional[int]:
+    sel = selector(wf)
+    if not sel:
         return None
-
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         cmd = [
-            "gh",
-            "run",
-            "list",
-            "-R",
-            f"{owner}/{repo}",
-            "--workflow",
-            selector,
-            "--limit",
-            "5",
-            "--json",
-            "databaseId,createdAt,status,conclusion,displayTitle,htmlUrl",
+            "gh", "run", "list",
+            "-R", f"{owner}/{repo}",
+            "--workflow", sel,
+            "--limit", "5",
+            "--json", "databaseId,createdAt,status,conclusion,displayTitle,htmlUrl",
         ]
         rc, out = run_capture(cmd)
         if rc == 0:
@@ -113,31 +110,22 @@ def gh_wait_run(owner: str, repo: str, run_id: int, poll_s: int = 10, timeout_s:
     last: Dict[str, Any] = {}
     while time.time() < deadline:
         cmd = [
-            "gh",
-            "run",
-            "view",
-            str(run_id),
-            "-R",
-            f"{owner}/{repo}",
-            "--json",
-            "databaseId,status,conclusion,createdAt,updatedAt,htmlUrl",
+            "gh", "run", "view", str(run_id),
+            "-R", f"{owner}/{repo}",
+            "--json", "databaseId,status,conclusion,createdAt,updatedAt,htmlUrl",
         ]
         rc, out = run_capture(cmd)
         if rc != 0:
             last = {"error": "gh_run_view_failed", "output": out.strip()}
             time.sleep(poll_s)
             continue
-
         try:
             last = json.loads(out)
         except Exception:
             last = {"error": "json_parse_failed", "output": out.strip()}
-
         if last.get("status") == "completed":
             return last
-
         time.sleep(poll_s)
-
     last["error"] = "timeout"
     return last
 
@@ -169,13 +157,19 @@ def main() -> int:
         "owner": args.owner,
         "config": str(cfg_path),
         "runs": [],
+        "preflight": [],
     }
 
     any_fail = False
 
     for rt in targets:
+        rc, out = gh_workflow_list(args.owner, rt.repo)
+        summary["preflight"].append({"repo": rt.repo, "rc": rc, "output": out.strip()})
+        write_text(out_dir / "preflight" / f"{rt.repo}_workflow_list.txt", out)
+
+    for rt in targets:
         for wf in rt.workflows:
-            label = workflow_selector(wf) or "unknown"
+            label = selector(wf) or "unknown"
             run_rec: Dict[str, Any] = {
                 "repo": rt.repo,
                 "workflow": label,
@@ -198,7 +192,7 @@ def main() -> int:
                     return 1
                 continue
 
-            run_id = gh_find_latest_run_id(args.owner, rt.repo, wf, timeout_s=90)
+            run_id = gh_find_latest_run_id(args.owner, rt.repo, wf, timeout_s=120)
             if run_id is None:
                 any_fail = True
                 run_rec["run"] = {"error": "run_id_not_found"}
@@ -223,9 +217,6 @@ def main() -> int:
 
             run_rec["utc_end"] = now_utc()
             summary["runs"].append(run_rec)
-
-            if (view.get("status") == "completed") and ((view.get("conclusion") or "").lower() != "success") and not args.keep_going:
-                break
 
     summary["utc_end"] = now_utc()
     summary["overall_rc"] = 1 if any_fail else 0

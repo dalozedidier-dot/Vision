@@ -16,6 +16,14 @@ on:
         required: false
         default: "true"
 
+# Important:
+# - Pour déclencher des workflows dans d'autres repos, GH_TOKEN doit être un PAT (recommandé).
+# - github.token est souvent insuffisant en cross-repo.
+#
+# Secret attendu (repo orchestrateur):
+# - GH_PAT : PAT classic avec scopes "workflow" et "repo" (ou "public_repo" si tout est public)
+#   ou Fine-grained PAT avec accès aux 5 repos + Actions (read/write) + Contents (read).
+
 permissions:
   contents: read
   actions: read
@@ -41,12 +49,20 @@ jobs:
           python -m pip install -U pip
           python -m pip install pyyaml
 
+      - name: Preflight auth and gh
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          echo "GH_TOKEN length: ${#GH_TOKEN}"
+          gh --version
+          gh auth status -h github.com || true
+
       - name: Orchestrate
         env:
-          # Recommandé: secrets.GH_PAT (PAT lecture actions sur tous les repos)
-          # Fallback: github.token (peut être insuffisant en cross-repo)
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
+          set -euo pipefail
           KEEP="--keep-going"
           if [ "${{ inputs.keep_going }}" != "true" ]; then
             KEEP=""

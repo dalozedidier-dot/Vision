@@ -1,6 +1,9 @@
 # Configuration des workflows à lancer dans chaque repo.
-# Pour éviter les ambiguités (deux workflows avec le même nom),
-# tu peux remplacer "name" par "file" si tu connais le nom du fichier YAML du workflow (ex: smoke.yml).
+# Recommandation: utiliser "file" (nom du fichier YAML dans .github/workflows) pour éviter les doublons de noms.
+# Exemple:
+#   - file: "smoke.yml"
+#
+# Dans l'état, on utilise les noms affichés (colonne Actions) tels que vus dans ton screenshot.
 
 targets:
   - repo: Captain-America
